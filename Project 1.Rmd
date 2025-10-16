@@ -1,0 +1,135 @@
+---
+title: "Project 1"
+author: "Saksham Bista - SDS 313 UT Austin"
+output:
+  html_document: default
+---
+
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(fig.height=3, fig.width=4, warning=FALSE, tidy=TRUE, echo=FALSE, tidy.opts=list(width.cutoff=60))
+
+scores = read.csv("Project1_school.csv")
+library(ggplot2)
+```
+
+# **1. Introduction**
+
+I use the School Scores dataset from the [CORGIS Datasets Project](https://corgis-edu.github.io/corgis/csv/school_scores/), which compiles state by year SAT results along with related context such as coursework, GPA by subject, gender, and family income breakdowns. CORGIS collected all of this data from official U.S. education sources.
+
+My outcome variable is the state’s mean SAT Math score, and my three predictors that plausibly relate to Math performance:
+
+1.  Average years of mathematics coursework (numeric), because more experience in math can relate to math score outcome.
+
+2.  Family income mix (numeric), because family income can relate to access of preperation and resources
+
+3.  Gender mix (categorical), checks for group differences
+
+![<https://admissions.blog/first-impressions-of-digital-sat/>](SAT%20pic.png)
+
+# **2. Outcome Variable**
+
+The outcome is Total SAT Math, the average SAT Math score for each state.
+
+```{r}
+scores_ggplot = ggplot(scores)
+#distribution of average sat math score across states
+scores_ggplot + geom_histogram(aes(x = Total.Math), binwidth=4, col = "blue", fill = "cyan4") + labs(x = "Average SAT math score", y = "Frequency")
+
+median_mathscore = median(scores$Total.Math)
+standard_dev_mathscore = round(sd(scores$Total.Math),2)
+
+min = min(scores$Total.Math)
+max = max(scores$Total.Math)
+
+```
+
+The distribution centers around a median of `r median_mathscore`, with a standard deviation of `r standard_dev_mathscore`; the minimum is `r min` and the maximum is `r max`.
+
+# **3. Bivariate Analyses**
+
+## Average years of mathematics coursework
+
+```{r}
+
+#number of years of math coursework, plotted against average math sat score.
+scores_ggplot + geom_point(shape = 8, size = 2, aes(x = Academic.Subjects.Mathematics.Average.Years , y = Total.Math), col = "#68228B") + labs(x = "Average years of math coursework", y ="Average SAT math score" )
+
+correlation1 = round(cor(scores$Academic.Subjects.Mathematics.Average.Years, scores$Total.Math), 2)
+
+```
+
+SAT Math rises as the average years of math coursework increases. The scatter plot shows a clear upward trend, with a correlation of `r correlation1`, this indicates a moderately strong positive association. In plain terms, states where students take more years of math tend to have higher SAT Math scores.
+
+## Family income mix
+
+```{r}
+total_income100k = scores[,"Family.Income.More.than.100k.Test.takers"]
+total_test_takers = scores[,"Total.Test.takers"]
+
+#percent calculation of families with income over 100K
+high_income = ((total_income100k)/(total_test_takers)) * 100
+
+scores$Percent.Of.High.Income = high_income
+
+#states with more high-income test takers tend to have higher average SAT Math
+scores_ggplot + geom_point(shape = 8, size = 2, aes(x = high_income, y = Total.Math), col = "seagreen4") + labs(x ="Percent of High income families (Over 100k)", y ="SAT math score") + xlim(0, 45)
+
+correlation2 = round(cor(x=scores$Percent.Of.High.Income, y=scores$Total.Math, method = "spearman"),2)
+
+```
+
+SAT Math is higher in states with a larger share of test takers from high income families. The relationship looks positive across the range of the income share with a Spearman's correlation of `r correlation2` (used Spearman due to extreme outlier). This supports the idea that income mix is linked to average performance. Percent of high income families was not in the original csv, but the raw numbers which are also separated by income levels can be found [here](https://corgis-edu.github.io/corgis/csv/school_scores/).
+
+## Gender mix
+
+```{r, fig.width = 7}
+female_scorers = scores$Gender.Female.Test.takers
+male_scorers = scores$Gender.Male.Test.takers
+
+scores$female_share = round((female_scorers)/(female_scorers + male_scorers)*100,2)
+
+median_femaleshare = median(scores$female_share)
+
+femalesharecat = factor(scores$female_share >= median_femaleshare,levels = c(FALSE, TRUE), labels = c("Below-median female share", "Above-median female share"))
+
+scores$femalesharecat = femalesharecat
+
+#Boxplot comparing states above vs below the median female share of SAT test takers.
+scores_ggplot + geom_boxplot(aes(x = femalesharecat, y = Total.Math, fill = femalesharecat)) + labs(x = "Gender category", y = "Average SAT math score", fill = "Category")
+
+medians = tapply(scores$Total.Math, scores$femalesharecat, median, na.rm = TRUE)
+```
+
+I compare states above vs below the median female share of test takers. The below median group has a slightly higher median SAT Math, `r medians[1]` compared to the above median group's `r medians[2]`, but the two distributions overlap a lot. This pattern is small and could reflect differences in who takes the test rather than differences in ability. More data on the differences between genders and their specific performance on the SAT can be found. [here](https://corgis-edu.github.io/corgis/csv/school_scores/)
+
+## Multivariate Plot
+
+```{r, fig.width = 5}
+
+sorted_income = sort(high_income)
+
+second_highest_income = sorted_income[length(sorted_income) - 1]
+
+#Each point is a state. x = average years of math, y = average SAT Math. Color shows % of high-income test takers; shape splits states by above/below-median female share
+scores_ggplot + geom_point(size = 1.4, aes(x = Academic.Subjects.Mathematics.Average.Years , y = Total.Math, color = high_income, shape = femalesharecat)) + labs(x = "Average years of math coursework", y ="Average SAT math score" ) + labs(shape = "Gender category", color = "% High income") + scale_color_gradient("% High income", limits = c(0, second_highest_income))
+
+
+```
+
+When I plot SAT Math against years of math and color by high-income share while marking gender category, the upward link with coursework remains and points with higher income share cluster higher in the plot. The two gender groups look similar overall.
+
+# **4. Choice Elements**
+
+**I used in-line** code in every description from outcome variables and bivariate analysis. **I created a new variable** when creating the gender mix graph, it assigned different string values to states depending on their female share rate. **I also made a new variable** that displayed the percent of students who came from high income families in each state. **I changed the font size and format** in here and above. I made subheadings for the different predictors that i did analyses on, and I bolded every choice element I made here. **I also made a multivariate plot** with all the predictor variables. Lastly, **I included 2 hyperlinks** to make clarifications and provide more information on the data.
+
+# **5. Conclusion**
+
+I analyzed SAT Math as the outcome and looked at average years of math coursework, the percent of high income test takers, and a gender mix category. SAT Math tended to be higher where students reported more years of math coursework. SAT Math also tended to be higher where a larger share of test takers came from high income families. The gender category comparison showed a small gap, with above median female share states a bit lower on SAT Math, but the distributions overlapped a lot and several other factors could explain that pattern. Overall, the clearest signals were the positive links with coursework and higher income, while the gender pattern was modest.
+
+For future research I would add SAT participation rate and then fit one model that uses all the predictors at once. I would also add school funding per student or access to test prep to see if they explain the income result.
+
+[Dataset information](https://corgis-edu.github.io/corgis/csv/school_scores/)
+
+[SAT picture](https://admissions.blog/first-impressions-of-digital-sat/)
+
+[Colors used in graphs](https://r-charts.com/colors/)
